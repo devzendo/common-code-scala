@@ -1,0 +1,75 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>org.devzendo</groupId>
+    <artifactId>common-code-scala</artifactId>
+    <version>1.1.0-SNAPSHOT</version>
+    <name>common-code-scala</name>
+    <packaging>jar</packaging>
+    <description>Common utility code for Scala, extending that in common-code.
+        (Apache License v2) 2018 Matt Gumbley, DevZendo.org</description>
+    <url>http://www.devzendo.org/content/commons</url>
+
+    <organization>
+        <name>DevZendo.org</name>
+        <url>http://devzendo.org/</url>
+    </organization>
+
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <scm>
+        <url>https://bitbucket.org/devzendo/common-code-scala</url>
+        <connection>scm:hg:https://bitbucket.org/devzendo/common-code-scala</connection>
+        <developerConnection>scm:hg:https://bitbucket.org/devzendo/common-code-scala</developerConnection>
+    </scm>
+
+    <developers>
+        <developer>
+            <id>matt.gumbley</id>
+            <name>Matt Gumbley</name>
+            <email>matt.gumbley@devzendo.org</email>
+        </developer>
+    </developers>
+
+    <parent>
+        <groupId>org.devzendo</groupId>
+        <artifactId>group-parent-scala</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath/>
+    </parent>
+
+    <dependencies>
+
+        <dependency>
+            <groupId>org.devzendo</groupId>
+            <artifactId>common-code</artifactId>
+            <version>1.1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- testing -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.12</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.easymock</groupId>
+            <artifactId>easymock</artifactId>
+            <version>3.3.1</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.scalatest</groupId>
+            <artifactId>scalatest_${scalatest.scala.version}</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
