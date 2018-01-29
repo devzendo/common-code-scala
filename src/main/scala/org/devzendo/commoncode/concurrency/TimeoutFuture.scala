@@ -23,6 +23,7 @@ import org.devzendo.commoncode.timeout.TimeoutScheduler
 import org.slf4j.{Logger, LoggerFactory}
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.{Failure, Try}
 
 object TimeoutFuture {
     val LOGGER: Logger = LoggerFactory.getLogger(TimeoutFuture.getClass)
@@ -34,8 +35,8 @@ object TimeoutFuture {
       * If execution of the executionBody completes before timeoutMs milliseconds have elapsed, its value is used to
       * successfully complete the Future, and the timeout is cancelled, with the onTimeoutBody not called.
       * @param timeoutMs the duration in milliseconds that the executionBody is given in which to execute.
-      * @param executionBody the body of code that returns a T, that will be used to successfully complete the Future
-      *                      if the timeout does not occur.
+      * @param executionBodyTry the body of code that returns a Try[T], that will be used to successfully complete the
+      *                      Future if the timeout does not occur.
       * @param onTimeoutBody an optional body of code that is executed if the executionBody takes longer than timeoutMs
       *                      to complete.
       * @param timeoutScheduler the implicit TimeoutScheduler used to schedule and cancel the timeout.
@@ -43,7 +44,7 @@ object TimeoutFuture {
       * @tparam T the type of the Future
       * @return the Future[T] that can be used asynchronously.
       */
-    def apply[T](timeoutMs: Long, executionBody: => T, onTimeoutBody: => Unit = {})(implicit timeoutScheduler: TimeoutScheduler, executor: ExecutionContext): Future[T] = {
+    def apply[T](timeoutMs: Long, executionBodyTry: => Try[T], onTimeoutBody: => Unit = {})(implicit timeoutScheduler: TimeoutScheduler, executor: ExecutionContext): Future[T] = {
         val thisCount = count.getAndIncrement()
         val messagePrefix = "TimeoutFuture #" + thisCount + ": "
 
@@ -56,11 +57,8 @@ object TimeoutFuture {
 
                 // Potential for race condition if executionBody has just completed with success: this setting of a
                 // failure will throw.
-                try {
-                    promise.failure(new TimeoutException(str))
-                } catch {
-                    case (ise: IllegalStateException) =>
-                        LOGGER.warn(messagePrefix + "Could not set Failure[TimeoutException] since Promise already completed") // otherwise, this can be ignored.
+                if (!promise.tryComplete(Failure(new TimeoutException(str)))) {
+                    LOGGER.warn(messagePrefix + "Could not set Failure[TimeoutException] since Promise already completed") // otherwise, this can be ignored.
                 }
 
                 try {
@@ -77,16 +75,20 @@ object TimeoutFuture {
         // Start executing the execution body....
         LOGGER.debug(messagePrefix + "Scheduling execution with timeout id " + timeoutId)
         Future({
-            // Potential for race condition if executionBody has just completed with timeout (failure): this setting of
-            // a success will throw.
-            try {
-                LOGGER.debug(messagePrefix + "Starting execution with timeout id " + timeoutId)
-                promise.success(executionBody)
-                LOGGER.debug(messagePrefix + "Finished successful execution with timeout id " + timeoutId)
-            } catch {
-                case (ise: IllegalStateException) =>
-                    LOGGER.warn(messagePrefix + "Could not set Success since Promise already completed with Failure[TimeoutException]") // otherwise, this can be ignored.
+            LOGGER.debug(messagePrefix + "Starting execution with timeout id " + timeoutId)
+            val tryBody = {
+                try {
+                    executionBodyTry
+                } catch {
+                    case (e: Exception) =>
+                        Failure(e)
+                }
             }
+            if (!promise.tryComplete(tryBody)) {
+                LOGGER.warn(messagePrefix + "Could not set execution result since Promise already completed with " + promise.future.value) // otherwise, this can be ignored.
+            }
+            LOGGER.debug(messagePrefix + "Finished execution with timeout id " + timeoutId)
+
             LOGGER.debug(messagePrefix + "Cancelling Timeout " + timeoutId)
             timeoutScheduler.cancel(timeoutId)
         })

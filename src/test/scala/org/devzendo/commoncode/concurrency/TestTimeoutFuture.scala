@@ -61,7 +61,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
         val future: Future[Boolean] = TimeoutFuture(1000L, {
             val bool = true
             succeeded.set(bool)
-            bool
+            Success(bool)
         })
 
         ThreadUtils.waitNoInterruption(1500L) // wait for the timeout period to finish
@@ -78,12 +78,50 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
     }
 
     @Test(timeout = 4000L)
+    def timeoutFutureCompletingWithThrowInTimeFails(): Unit = {
+        val future: Future[Boolean] = TimeoutFuture(1000L, {
+            throw new IllegalStateException("Flux capacitor overload")
+        })
+
+        ThreadUtils.waitNoInterruption(1500L) // wait for the timeout period to finish
+
+        future.value must be('defined)
+        future.value.get match {
+            case Success(x) =>
+                fail ("Should not have succeeded")
+            // Can't test here that the timeout scheduler has cancelled the timeout
+            case Failure(f) =>
+                f mustBe a [IllegalStateException]
+                f.getMessage must be("Flux capacitor overload")
+        }
+    }
+
+    @Test(timeout = 4000L)
+    def timeoutFutureCompletingWithFailureInTimeFails(): Unit = {
+        val future: Future[Boolean] = TimeoutFuture(1000L, {
+            Failure(new IllegalStateException("Flux capacitor overload"))
+        })
+
+        ThreadUtils.waitNoInterruption(1500L) // wait for the timeout period to finish
+
+        future.value must be('defined)
+        future.value.get match {
+            case Success(x) =>
+                fail ("Should not have succeeded")
+            // Can't test here that the timeout scheduler has cancelled the timeout
+            case Failure(f) =>
+                f mustBe a [IllegalStateException]
+                f.getMessage must be("Flux capacitor overload")
+        }
+    }
+
+    @Test(timeout = 4000L)
     def timeoutFutureCompletingCancelsTimeout(): Unit = {
         val mockTimeoutScheduler = mock[TimeoutScheduler]
         val timeoutId = new TimeoutId(69L)
         when(mockTimeoutScheduler.schedule(ArgumentMatchers.eq(1000L), ArgumentMatchers.any[Runnable])).thenReturn(timeoutId)
 
-        TimeoutFuture(1000L, { true })(mockTimeoutScheduler, Implicits.global)
+        TimeoutFuture(1000L, { Success(true) })(mockTimeoutScheduler, Implicits.global)
 
         ThreadUtils.waitNoInterruption(1500L) // wait for the timeout period to finish
 
@@ -98,7 +136,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
             ThreadUtils.waitNoInterruption(2000L)
             val bool = true
             succeeded.set(bool)
-            bool
+            Success(bool)
         })
 
         ThreadUtils.waitNoInterruption(500L)
@@ -128,7 +166,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
 
         val future: Future[Boolean] = TimeoutFuture(1000L, {
             ThreadUtils.waitNoInterruption(2000L)
-            true
+            Success(true)
         }, {
             succeeded.set(true)
         })
