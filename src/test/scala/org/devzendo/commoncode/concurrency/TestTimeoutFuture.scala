@@ -31,7 +31,7 @@ import org.scalatest.mock.MockitoSugar
 import org.slf4j.{Logger, LoggerFactory}
 
 import scala.concurrent.ExecutionContext.Implicits
-import scala.concurrent.Future
+import scala.concurrent.{Future, Promise}
 import scala.util.{Failure, Success}
 
 object TestTimeoutFuture {
@@ -80,7 +80,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
     @Test(timeout = 4000L)
     def timeoutFutureCompletingWithThrowInTimeFails(): Unit = {
         val future: Future[Boolean] = TimeoutFuture(1000L, {
-            throw new IllegalStateException("Flux capacitor overload")
+            throw new IllegalStateException("Flux capacitor overload") // not exactly FP, but deal with it!
         })
 
         ThreadUtils.waitNoInterruption(1500L) // wait for the timeout period to finish
@@ -129,7 +129,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
     }
 
     @Test(timeout = 4000L)
-    def timeoutFutureCompletingAfterTimeoutTimeFails(): Unit = {
+    def timeoutFutureCompletingAfterTimeoutFailsWithFutureHoldingFailureTimeoutException(): Unit = {
         val succeeded = new AtomicBoolean(false)
 
         val future: Future[Boolean] = TimeoutFuture(1000L, {
@@ -162,13 +162,13 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
 
     @Test(timeout = 4000L)
     def timeoutFutureCompletingAfterTimeoutTimeCallsOnTimeoutBody(): Unit = {
-        val succeeded = new AtomicBoolean(false)
+        val onTimeoutBodyCalled = new AtomicBoolean(false)
 
         val future: Future[Boolean] = TimeoutFuture(1000L, {
             ThreadUtils.waitNoInterruption(2000L)
             Success(true)
         }, {
-            succeeded.set(true)
+            onTimeoutBodyCalled.set(true)
         })
 
         ThreadUtils.waitNoInterruption(1500L)
@@ -179,7 +179,34 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
             case Success(_) =>
                 fail ("Should not get a success from a timeout")
             case Failure(_) =>
-                succeeded.get() must be(true)
+                onTimeoutBodyCalled.get() must be(true)
+            // It's implied that the timeout scheduler must have executed the timeout
+        }
+    }
+
+    @Test(timeout = 4000L)
+    def timeoutFutureCompletingAfterTimeoutCallsOnTimeoutBodyAcceptingPromiseToFailWithCustomException(): Unit = {
+
+        val onTimeoutBodyCalled: (Promise[Boolean] => Unit) = promise => {
+            TestTimeoutFuture.LOGGER.info("In timeout body with promise, failing in custom manner")
+            promise.failure(new ArithmeticException("My custom exception text"))
+        }
+
+        val future: Future[Boolean] = TimeoutFuture(1000L, {
+            ThreadUtils.waitNoInterruption(2000L)
+            Success(true)
+        }, onTimeoutBodyCalled)
+
+        ThreadUtils.waitNoInterruption(1500L)
+
+        // should have finished with timeout by now
+        future.value must be('defined)
+        future.value.get match {
+            case Success(_) =>
+                fail ("Should not get a success from a timeout")
+            case Failure(x) =>
+                x mustBe a [ArithmeticException]
+                x.getMessage must include("My custom exception text")
             // It's implied that the timeout scheduler must have executed the timeout
         }
     }
