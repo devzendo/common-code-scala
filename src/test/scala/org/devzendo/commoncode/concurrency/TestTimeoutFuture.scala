@@ -210,5 +210,31 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
             // It's implied that the timeout scheduler must have executed the timeout
         }
     }
+
+    @Test(timeout = 4000L)
+    def timeoutFutureCompletingAfterTimeoutCallsOnTimeoutBodyAcceptingPromiseThatDoesNotFailWithCustomExceptionButTimeoutExceptionStillSetAsFailure(): Unit = {
+
+        val onTimeoutBodyCalled: (Promise[Boolean] => Unit) = _ => {
+            TestTimeoutFuture.LOGGER.info("In timeout body with promise, ignoring opportunity to fail in custom manner")
+        }
+
+        val future: Future[Boolean] = TimeoutFuture(1000L, {
+            ThreadUtils.waitNoInterruption(2000L)
+            Success(true)
+        }, onTimeoutBodyCalled)
+
+        ThreadUtils.waitNoInterruption(1500L)
+
+        // should have finished with timeout by now
+        future.value must be('defined)
+        future.value.get match {
+            case Success(_) =>
+                fail ("Should not get a success from a timeout")
+            case Failure(x) =>
+                x mustBe a [TimeoutException]
+                x.getMessage must include("Timed out after 1000ms")
+            // It's implied that the timeout scheduler must have executed the timeout
+        }
+    }
 }
 
