@@ -185,7 +185,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
     }
 
     @Test(timeout = 4000L)
-    def timeoutFutureCompletingAfterTimeoutCallsOnTimeoutBodyAcceptingPromiseToFailWithCustomException(): Unit = {
+    def timeoutFutureCompletingAfterTimeoutCallsOnTimeoutBodyWithFunctionAcceptingPromiseToFailWithCustomException(): Unit = {
 
         val onTimeoutBodyCalled: (Promise[Boolean] => Unit) = promise => {
             TestTimeoutFuture.LOGGER.info("In timeout body with promise, failing in custom manner")
@@ -196,6 +196,31 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
             ThreadUtils.waitNoInterruption(2000L)
             Success(true)
         }, onTimeoutBodyCalled)
+
+        ThreadUtils.waitNoInterruption(1500L)
+
+        // should have finished with timeout by now
+        future.value must be('defined)
+        future.value.get match {
+            case Success(_) =>
+                fail ("Should not get a success from a timeout")
+            case Failure(x) =>
+                x mustBe a [ArithmeticException]
+                x.getMessage must include("My custom exception text")
+            // It's implied that the timeout scheduler must have executed the timeout
+        }
+    }
+
+    @Test(timeout = 4000L)
+    def timeoutFutureCompletingAfterTimeoutCallsOnTimeoutBodyWithInlineFunctionAcceptingPromiseToFailWithCustomException(): Unit = {
+
+        val future: Future[Boolean] = TimeoutFuture(1000L, {
+            ThreadUtils.waitNoInterruption(2000L)
+            Success(true)
+        }, (promise: Promise[Boolean]) => {
+            TestTimeoutFuture.LOGGER.info("In timeout body with promise, failing in custom manner")
+            promise.failure(new ArithmeticException("My custom exception text"))
+        })
 
         ThreadUtils.waitNoInterruption(1500L)
 
