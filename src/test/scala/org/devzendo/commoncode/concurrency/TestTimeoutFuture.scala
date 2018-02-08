@@ -55,7 +55,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
     }
 
     @Test(timeout = 4000L)
-    def timeoutFutureCompletingInTimeSucceeds(): Unit = {
+    def inTimeSucceeds(): Unit = {
         val succeeded = new AtomicBoolean(false)
 
         val future: Future[Boolean] = TimeoutFuture(1000L, {
@@ -78,7 +78,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
     }
 
     @Test(timeout = 4000L)
-    def timeoutFutureCompletingWithThrowInTimeFails(): Unit = {
+    def inTimeWithThrowFails(): Unit = {
         val future: Future[Boolean] = TimeoutFuture(1000L, {
             throw new IllegalStateException("Flux capacitor overload") // not exactly FP, but deal with it!
         })
@@ -97,7 +97,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
     }
 
     @Test(timeout = 4000L)
-    def timeoutFutureCompletingWithFailureInTimeFails(): Unit = {
+    def inTimeWithFailureFails(): Unit = {
         val future: Future[Boolean] = TimeoutFuture(1000L, {
             Failure(new IllegalStateException("Flux capacitor overload"))
         })
@@ -116,7 +116,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
     }
 
     @Test(timeout = 4000L)
-    def timeoutFutureCompletingCancelsTimeout(): Unit = {
+    def inTimeCancelsTimeout(): Unit = {
         val mockTimeoutScheduler = mock[TimeoutScheduler]
         val timeoutId = new TimeoutId(69L)
         when(mockTimeoutScheduler.schedule(ArgumentMatchers.eq(1000L), ArgumentMatchers.any[Runnable])).thenReturn(timeoutId)
@@ -129,26 +129,27 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
     }
 
     @Test(timeout = 4000L)
-    def timeoutFutureCompletingAfterTimeoutFailsWithFutureHoldingFailureTimeoutException(): Unit = {
-        val succeeded = new AtomicBoolean(false)
+    def timeoutFailsWithFutureHoldingFailureTimeoutException(): Unit = {
+        val afterSlowComputation = new AtomicBoolean(false)
 
+        // No onTimeoutBody is given here - the TimeoutFuture handles all of it.
         val future: Future[Boolean] = TimeoutFuture(1000L, {
             ThreadUtils.waitNoInterruption(2000L)
             val bool = true
-            succeeded.set(bool)
+            afterSlowComputation.set(bool)
             Success(bool)
         })
 
         ThreadUtils.waitNoInterruption(500L)
 
         // Initially, nothing happens...
-        Assert.assertFalse(succeeded.get())
+        Assert.assertFalse(afterSlowComputation.get())
         future.value must not be 'defined
 
         ThreadUtils.waitNoInterruption(1000L)
 
         // should have finished with timeout by now
-        Assert.assertFalse(succeeded.get())
+        Assert.assertFalse(afterSlowComputation.get())
         future.value must be('defined)
         future.value.get match {
             case Success(_) =>
@@ -158,16 +159,21 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
                 x.getMessage must include("Timed out after 1000ms")
                 // It's implied that the timeout scheduler must have executed the timeout
         }
+
+        // Give the Future a bit longer after the failure has been returnend to show that computation isn't
+        // terminated, but continues.
+        ThreadUtils.waitNoInterruption(1000L)
+        Assert.assertTrue(afterSlowComputation.get())
     }
 
     @Test(timeout = 4000L)
-    def timeoutFutureCompletingAfterTimeoutTimeCallsOnTimeoutBody(): Unit = {
+    def timeoutCallsOnTimeoutBody(): Unit = {
         val onTimeoutBodyCalled = new AtomicBoolean(false)
 
         val future: Future[Boolean] = TimeoutFuture(1000L, {
             ThreadUtils.waitNoInterruption(2000L)
             Success(true)
-        }, {
+        }, (_: Promise[Boolean]) => {
             onTimeoutBodyCalled.set(true)
         })
 
@@ -185,7 +191,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
     }
 
     @Test(timeout = 4000L)
-    def timeoutFutureCompletingAfterTimeoutCallsOnTimeoutBodyWithFunctionAcceptingPromiseToFailWithCustomException(): Unit = {
+    def timeoutCallsOnTimeoutBodyWithFunctionAcceptingPromiseToFailWithCustomException(): Unit = {
 
         val onTimeoutBodyCalled: (Promise[Boolean] => Unit) = promise => {
             TestTimeoutFuture.LOGGER.info("In timeout body with promise, failing in custom manner")
@@ -212,7 +218,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
     }
 
     @Test(timeout = 4000L)
-    def timeoutFutureCompletingAfterTimeoutCallsOnTimeoutBodyWithInlineFunctionAcceptingPromiseToFailWithCustomException(): Unit = {
+    def timeoutCallsOnTimeoutBodyWithInlineFunctionAcceptingPromiseToFailWithCustomException(): Unit = {
 
         val future: Future[Boolean] = TimeoutFuture(1000L, {
             ThreadUtils.waitNoInterruption(2000L)
@@ -237,7 +243,7 @@ class TestTimeoutFuture extends AssertionsForJUnit with MustMatchers with ScalaF
     }
 
     @Test(timeout = 4000L)
-    def timeoutFutureCompletingAfterTimeoutCallsOnTimeoutBodyAcceptingPromiseThatDoesNotFailWithCustomExceptionButTimeoutExceptionStillSetAsFailure(): Unit = {
+    def timeoutCallsOnTimeoutBodyAcceptingPromiseThatDoesNotFailWithCustomExceptionButTimeoutExceptionStillSetAsFailure(): Unit = {
 
         val onTimeoutBodyCalled: (Promise[Boolean] => Unit) = _ => {
             TestTimeoutFuture.LOGGER.info("In timeout body with promise, ignoring opportunity to fail in custom manner")
