@@ -23,9 +23,9 @@
     </licenses>
 
     <scm>
-        <url>https://bitbucket.org/devzendo/common-code-scala</url>
-        <connection>scm:hg:https://bitbucket.org/devzendo/common-code-scala</connection>
-        <developerConnection>scm:hg:https://bitbucket.org/devzendo/common-code-scala</developerConnection>
+        <url>https://github.com/devzendo/common-code-scala.git</url>
+        <connection>scm:git:https://github.com/devzendo/common-code-scala.git</connection>
+        <developerConnection>scm:git:git@github.com:devzendo/common-code-scala.git</developerConnection>
     </scm>
 
     <developers>
